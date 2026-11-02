@@ -1,6 +1,7 @@
 """Preflight checks run before anything is submitted, so mistakes fail on the login node."""
 from __future__ import annotations
 
+import configparser
 import netrc
 import os
 import subprocess
@@ -10,6 +11,20 @@ from submitkit.jobs import Job
 from submitkit.profiles import Profile
 
 
+def _wandb_hosts() -> set[str]:
+    """API hosts wandb may use: $WANDB_BASE_URL, base_url from wandb's global / project settings, the default."""
+    urls = [os.environ.get("WANDB_BASE_URL", ""), "https://api.wandb.ai"]
+    cfg_dir = Path(os.environ.get("WANDB_CONFIG_DIR", Path.home() / ".config" / "wandb"))
+    for f in (cfg_dir / "settings", Path.cwd() / "wandb" / "settings"):
+        settings = configparser.ConfigParser()
+        try:
+            settings.read(f)
+            urls.append(settings.get("default", "base_url", fallback=""))
+        except configparser.Error:
+            pass
+    return {u.split("://")[-1].split("/")[0] for u in urls if u}
+
+
 def wandb_configured(env: dict[str, str]) -> str | None:
     """None if WandB can log in non-interactively (or is disabled/offline), else the problem."""
     mode = env.get("WANDB_MODE", os.environ.get("WANDB_MODE", "online"))
@@ -17,13 +32,15 @@ def wandb_configured(env: dict[str, str]) -> str | None:
         return None
     if env.get("WANDB_API_KEY") or os.environ.get("WANDB_API_KEY"):
         return None
+    hosts = _wandb_hosts()
     try:
-        host = os.environ.get("WANDB_BASE_URL", "https://api.wandb.ai").split("://")[-1].split("/")[0]
-        if netrc.netrc().authenticators(host):
+        rc = netrc.netrc(os.environ.get("NETRC") or None)
+        if any(rc.authenticators(h) for h in hosts):
             return None
     except (FileNotFoundError, netrc.NetrcParseError):
         pass
-    return "no WandB API key (run `wandb login` once, or set WANDB_API_KEY / WANDB_MODE=offline)"
+    return (f"no WandB API key for {sorted(hosts)} in ~/.netrc (run `wandb login` once, "
+            f"or set WANDB_API_KEY / WANDB_MODE=offline)")
 
 
 def git_state(cwd: str) -> tuple[str | None, bool]:
