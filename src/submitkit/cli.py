@@ -97,10 +97,12 @@ def submit(jobs: Sequence[Job], *, env: dict[str, str] | None = None,
         print(f"[submitkit] WARNING: {w}")
     for e in errors:
         print(f"[submitkit] ERROR: {e}")
-    if errors and not args.no_checks:
+    if errors and args.submit and not args.no_checks:
         sys.exit(f"[submitkit] {len(errors)} preflight error(s); nothing submitted.")
-
-    results_root = profile.results_dir() if not errors else None
+    try:
+        results_root = profile.results_dir()
+    except RuntimeError:
+        results_root = None
     print(f"[submitkit] profile={profile.name} executor={profile.executor} "
           f"partition={profile.partition} results={results_root} commit={(commit or '-')[:8]}")
 
@@ -115,7 +117,8 @@ def submit(jobs: Sequence[Job], *, env: dict[str, str] | None = None,
             todo_jobs.append((j, cpus, mem_gb, minutes))
 
     if not args.submit:
-        print(f"[submitkit] dry run: {len(todo_jobs)} job(s) would run. Add --submit to go.")
+        fix = f" Fix the {len(errors)} error(s) above first." if errors else ""
+        print(f"[submitkit] dry run: {len(todo_jobs)} job(s) would run. Add --submit to go.{fix}")
         return
     if not todo_jobs:
         print("[submitkit] nothing to do.")
