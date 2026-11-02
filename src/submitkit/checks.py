@@ -5,6 +5,7 @@ import configparser
 import netrc
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from submitkit.jobs import Job
@@ -17,10 +18,14 @@ def _wandb_hosts() -> set[str]:
     versions, e.g. api.wandb.ai -> api.forge.coreweave.com), then $WANDB_BASE_URL and settings files.
     """
     urls = [os.environ.get("WANDB_BASE_URL", ""), "https://api.wandb.ai"]
+    # in a subprocess: wandb.setup() starts a service and sets WANDB_SERVICE, which must not
+    # leak into the submitting process (jobs inherit its env and would dial a login-node socket)
     try:
-        import wandb
-        urls.append(wandb.setup().settings.base_url)
-    except Exception:  # wandb missing / API change -> fall back to files
+        out = subprocess.run([sys.executable, "-c", "import wandb; print(wandb.setup().settings.base_url)"],
+                             capture_output=True, text=True, timeout=60)
+        if out.returncode == 0 and out.stdout.strip():
+            urls.append(out.stdout.strip().splitlines()[-1])
+    except (OSError, subprocess.TimeoutExpired):  # wandb missing / slow -> fall back to files
         pass
     cfg_dir = Path(os.environ.get("WANDB_CONFIG_DIR", Path.home() / ".config" / "wandb"))
     for f in (cfg_dir / "settings", Path.cwd() / "wandb" / "settings"):

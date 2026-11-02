@@ -42,6 +42,9 @@ class Job:
     keep_going: bool = True                     # continue with next run if one fails
 
 
+_NODE_LOCAL_ENV = ("WANDB_SERVICE", "_WANDB_SERVICE")
+
+
 def _fmt(s: str, ctx: dict[str, str]) -> str:
     try:
         return s.format(**ctx)
@@ -68,6 +71,8 @@ def execute_job(job: Job, results_root: str, base_env: dict[str, str], cpus: int
     results_root = Path(results_root)
     cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", cpus))
     env0 = {**os.environ, **base_env, "RESULTS_ROOT": str(results_root)}
+    for k in _NODE_LOCAL_ENV:  # handles to processes on the submitting host; meaningless on a node
+        env0.pop(k, None)
     for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "TORCH_NUM_THREADS"):
         env0.setdefault(k, str(job.threads))
 
