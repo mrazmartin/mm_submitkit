@@ -41,8 +41,8 @@ if __name__ == "__main__":
 
 ```bash
 python submit.py                                   # dry run
-python submit.py --profile helix --submit          # submit
-python submit.py --profile helix --submit --only ours --minutes 600
+python submit.py --submit                          # submit (helix on the cluster, local elsewhere)
+python submit.py --submit --only ours --minutes 600
 python submit.py --profile local --submit --parallel 4
 ```
 
@@ -53,6 +53,8 @@ rendering vars and single-threaded BLAS/torch defaults (`Job.threads`). Strings 
 Results go to `<workspace or results_root>/runs/`, logs to `<...>/submitit_logs/<job name>/`.
 
 ## Profiles
+
+Without `--profile`, `helix` is used where SLURM is available (`sbatch` on PATH), `local` elsewhere.
 
 Built-in: `local`, `helix` (bwForCluster Helix: `cpu-single` / `gpu-single`, 120 h limit).
 Add or adjust your own in `~/.config/submitkit/profiles.yaml`:

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
@@ -93,6 +94,10 @@ _ENV_KEYS = {  # SUBMITKIT_<KEY> -> profile field (with type)
 }
 
 
+def _auto_profile() -> str:
+    return "helix" if shutil.which("sbatch") else "local"
+
+
 def _user_config() -> dict[str, Any]:
     if not USER_CONFIG.exists():
         return {}
@@ -107,7 +112,7 @@ def load_profile(name: str | None = None, defaults: dict[str, dict[str, Any]] | 
     overrides: highest-precedence field values (CLI flags); None values are ignored.
     """
     user = _user_config()
-    name = name or os.environ.get("SUBMITKIT_PROFILE") or user.get("default") or "local"
+    name = name or os.environ.get("SUBMITKIT_PROFILE") or user.get("default") or _auto_profile()
     if name not in BUILTIN and name not in user:
         raise KeyError(f"Unknown profile '{name}'. Built-in: {sorted(BUILTIN)}; user ({USER_CONFIG}): "
                        f"{sorted(k for k in user if k != 'default')}")
