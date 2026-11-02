@@ -12,8 +12,16 @@ from submitkit.profiles import Profile
 
 
 def _wandb_hosts() -> set[str]:
-    """API hosts wandb may use: $WANDB_BASE_URL, base_url from wandb's global / project settings, the default."""
+    """
+    API hosts wandb may use. Asks the installed wandb first (its default host changed across
+    versions, e.g. api.wandb.ai -> api.forge.coreweave.com), then $WANDB_BASE_URL and settings files.
+    """
     urls = [os.environ.get("WANDB_BASE_URL", ""), "https://api.wandb.ai"]
+    try:
+        import wandb
+        urls.append(wandb.setup().settings.base_url)
+    except Exception:  # wandb missing / API change -> fall back to files
+        pass
     cfg_dir = Path(os.environ.get("WANDB_CONFIG_DIR", Path.home() / ".config" / "wandb"))
     for f in (cfg_dir / "settings", Path.cwd() / "wandb" / "settings"):
         settings = configparser.ConfigParser()
